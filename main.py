@@ -4,16 +4,27 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 app = FastAPI(
-    title="Breast Cancer Classification API",
-    description="Predict benign or malignant tumors using ML.",
+    title="Breast Cancer Prediction API",
+    description="ML-powered breast cancer classification system",
     version="1.0.0"
 )
 
-# Load model + scaler
+# -----------------------
+# Health check
+# -----------------------
+@app.get("/")
+def health_check():
+    return {"status": "API is running"}
+
+# -----------------------
+# Load model and scaler
+# -----------------------
 model = joblib.load("./model/model.pkl")
 scaler = joblib.load("./model/scaler.pkl")
 
+# -----------------------
 # Input schema
+# -----------------------
 class TumorInput(BaseModel):
     radius_mean: float
     texture_mean: float
@@ -46,21 +57,18 @@ class TumorInput(BaseModel):
     symmetry_worst: float
     fractal_dimension_worst: float
 
+# -----------------------
+# Prediction endpoint
+# -----------------------
 @app.post("/predict")
 def predict(data: TumorInput):
     X = np.array([list(data.dict().values())])
     X_scaled = scaler.transform(X)
 
     pred = model.predict(X_scaled)[0]
-    # Some sklearn models like SVM may not implement predict_proba by default.
-    # If your model has predict_proba, this will work. Otherwise, skip confidence.
-    try:
-        proba = model.predict_proba(X_scaled)[0]
-        confidence = float(np.max(proba))
-    except Exception:
-        confidence = None
+    proba = model.predict_proba(X_scaled)[0]
 
     return {
         "prediction": "Malignant" if pred == 1 else "Benign",
-        "confidence": confidence
+        "confidence": float(np.max(proba))
     }
